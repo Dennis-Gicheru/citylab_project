@@ -11,7 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
-# 2. Add the executable (ensure your file is in src/patrol.cpp)
+# 2. Add the executable 
 add_executable(patrol_node src/patrol.cpp)
 
 # 3. Link the dependencies to the executable
@@ -21,15 +21,16 @@ ament_target_dependencies(patrol_node
   geometry_msgs
 )
 
-# 4. Install the executable so 'ros2 run' can find it
+# 4. Install the executable 
 install(TARGETS
   patrol_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
 # 5. Install the launch files
-install(DIRECTORY launch
+install(DIRECTORY launch rviz
   DESTINATION share/${PROJECT_NAME}
 )
 
 ament_package()
+
