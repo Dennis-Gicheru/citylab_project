@@ -14,7 +14,7 @@ def generate_launch_description():
             executable='patrol_node',
             output='screen',
             remappings=[
-        ('/cmd_vel', '/fastbot_1/cmd_vel'), ('/scan', '/fastbot_1/scan')
+        ('/cmd_vel', '/cmd_vel'), ('/scan', '/scan')
             ]
         ),
 
