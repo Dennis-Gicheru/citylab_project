@@ -10,7 +10,7 @@ using namespace std::chrono_literals;
 class Patrol : public rclcpp::Node {
 public:
     Patrol() : Node("patrol_node") {
-        // Use SensorDataQoS for real hardware (more robust against lag)
+        // Use SensorDataQoS for real hardware 
         auto qos = rclcpp::SensorDataQoS();
 
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
@@ -24,7 +24,7 @@ public:
         // Initialize the last scan time to now
         last_scan_time_ = this->now();
 
-        RCLCPP_INFO(this->get_logger(), "Remote Patrol Node (Barcelona Edition) started.");
+        RCLCPP_INFO(this->get_logger(), "Remote Patrol Node started.");
     }
 
 private:
@@ -43,7 +43,6 @@ private:
         for (int i = start_idx; i < end_idx; i++) {
             float range = msg->ranges[i];
             
-            // Check for obstacles in the center rays
             int center_idx = total_rays / 2;
             if (i > center_idx - 15 && i < center_idx + 15) {
                 // INCREASED THRESHOLD: 0.7m to compensate for internet latency
@@ -79,7 +78,7 @@ private:
         msg.linear.x = 0.08; // Slightly slower for safer remote operation
         
         if (obstacle_detected_) {
-            // Apply rotation, but CAP it to 0.6 rad/s to prevent wheel slip
+            
             float turn_speed = direction_ / 2.0;
             msg.angular.z = std::clamp(turn_speed, -0.6f, 0.6f);
         } else {
@@ -92,7 +91,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Time last_scan_time_; // Watchdog variable
+    rclcpp::Time last_scan_time_; 
     float direction_ = 0.0;
     bool obstacle_detected_ = false; 
 };
