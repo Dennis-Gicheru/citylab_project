@@ -20,23 +20,25 @@ public:
     }
 
 private:
+    // --- Member Variables (Declared once) ---
+    float target_angle_ = 0.0;
+    float direction_ = 0.0;
+    bool obstacle_detected_ = false;
+
     void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
         float max_dist = 0.0;
-        float target_angle = 0.0;
+        float current_target = 0.0; // This temporary variable holds the best angle found
 
         int total_rays = msg->ranges.size();
-        // front 180 degrees is roughly from index total/4 to 3*total/4
         int start_idx = total_rays / 4;
         int end_idx = 3 * total_rays / 4;
 
-        // Reset obstacle flag for this scan
         obstacle_detected_ = false;
 
         for (int i = start_idx; i < end_idx; i++) {
             float range = msg->ranges[i];
             
-            // Check for obstacles in the center rays (front of the robot)
-            // We check a small window in the middle of our 180 degree arc
+            // Check for obstacles in the center rays
             int center_idx = total_rays / 2;
             if (i > center_idx - 10 && i < center_idx + 10) {
                 if (range < 0.35) {
@@ -47,34 +49,35 @@ private:
             if (!std::isinf(range) && !std::isnan(range) && range > 0.4) {
                 if (range > max_dist) {
                     max_dist = range;
-
-                    target_angle = msg->angle_min + (i * msg->angle_increment);
+                    current_target = msg->angle_min + (i * msg->angle_increment);
                 }
             }
         }
-        direction_ = target_angle;
+        
+        // Update the member variables so the control_loop can see the results
+        direction_ = current_target;
+        target_angle_ = current_target; 
     }
 
     void control_loop() {
         auto msg = geometry_msgs::msg::Twist();
-        msg.linear.x = 0.1; // Constant linear velocity as per requirement
+        msg.linear.x = 0.1; 
 
         if (obstacle_detected_) {
-            // Apply rotation logic only if obstacle is near
+            // Use the member variable direction_
             msg.angular.z = direction_ / 2.0;
         } else {
-            // Move straight if path is clear
-            msg.angular.z = std::clamp(target_angle, -0.5f, 0.5f);
+            
+            msg.angular.z = std::clamp(target_angle_, -0.5f, 0.5f);
         }
         
         vel_pub_->publish(msg);
     }
 
+    // ROS 2 objects
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
-    float direction_ = 0.0;
-    bool obstacle_detected_ = false; // Flag to track 35cm threshold
 };
 
 int main(int argc, char **argv) {
