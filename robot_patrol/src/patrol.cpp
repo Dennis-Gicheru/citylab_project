@@ -12,7 +12,7 @@ public:
     Patrol() : Node("patrol_node") {
         // QoS for LaserScan (Best Effort)
         auto qos_sensor = rclcpp::SensorDataQoS();
-        // QoS for Cmd_Vel (Reliable - to fix the mismatch warning)
+        // QoS for Cmd_Vel (Reliable)
         auto qos_cmd = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
 
         scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
@@ -33,8 +33,10 @@ private:
         last_scan_time_ = this->now(); 
         
         float max_dist = 0.0;
-        float target_angle = 0.0;
+        float found_angle = 0.0; // Local temporary variable
         int total_rays = msg->ranges.size();
+        
+        // Front 180 degrees
         int start_idx = total_rays / 4;
         int end_idx = 3 * total_rays / 4;
 
@@ -44,27 +46,32 @@ private:
             float range = msg->ranges[i];
             int center_idx = total_rays / 2;
             
+            // 1. Obstacle Detection (Center 80 rays)
             if (i > center_idx - 40 && i < center_idx + 40) {
-                if (range < 0.8 && range > 0.4) { 
+                // Check if something is within the 'danger zone'
+                if (range < 0.8 && range > 0.05) { 
                     obstacle_detected_ = true;
                 }
             }
 
+            // 2. Finding the widest opening (Max distance)
             if (!std::isinf(range) && !std::isnan(range) && range > 0.4) {
                 if (range > max_dist) {
                     max_dist = range;
-                    target_angle = msg->angle_min + (i * msg->angle_increment);
+                    found_angle = msg->angle_min + (i * msg->angle_increment);
                 }
             }
         }
-        direction_ = target_angle;
+        
+        // Update member variables so control_loop can see the results
+        direction_ = found_angle;
     }
 
     void control_loop() {
         auto msg = geometry_msgs::msg::Twist();
         auto time_since_last_scan = this->now() - last_scan_time_;
 
-        // 1. Watchdog Logic
+        // 1. Watchdog Logic: Stop if we lose sensor data
         if (time_since_last_scan.seconds() > 0.6) {
             RCLCPP_WARN(this->get_logger(), "Watchdog: No scan data for %.2f s!", time_since_last_scan.seconds());
             msg.linear.x = 0.0;
@@ -73,12 +80,14 @@ private:
             return; 
         }
 
-        // 2. Normal Movement Logic
+        // 2. Movement Logic
         msg.linear.x = 0.08; 
         if (obstacle_detected_) {
-            float turn_speed = direction_ / 2.0;
+            // Turn toward the 'max_dist' direction found in callback
+            float turn_speed = direction_; 
             msg.angular.z = std::clamp(turn_speed, -0.6f, 0.6f);
         } else {
+            // Move straight if no obstacle in front
             msg.angular.z = 0.0;
         }
 
