@@ -44,9 +44,10 @@ private:
                 }
             }
 
-            if (!std::isinf(range) && !std::isnan(range)) {
+            if (!std::isinf(range) && !std::isnan(range) && range > 0.4) {
                 if (range > max_dist) {
                     max_dist = range;
+
                     target_angle = msg->angle_min + (i * msg->angle_increment);
                 }
             }
@@ -63,7 +64,7 @@ private:
             msg.angular.z = direction_ / 2.0;
         } else {
             // Move straight if path is clear
-            msg.angular.z = 0.0;
+            msg.angular.z = std::clamp(target_angle, -0.5f, 0.5f);
         }
         
         vel_pub_->publish(msg);
