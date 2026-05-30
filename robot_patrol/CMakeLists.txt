@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 # 2. Add the executable 
 add_executable(patrol_node src/patrol.cpp)
@@ -19,6 +20,7 @@ ament_target_dependencies(patrol_node
   rclcpp 
   sensor_msgs 
   geometry_msgs
+  nav_msgs        
 )
 
 # 4. Install the executable 
