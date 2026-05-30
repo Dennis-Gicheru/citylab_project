@@ -23,34 +23,44 @@ public:
   }
 
 private:
+  // Converts a real-world angle (radians) to its array index in the scan
+  // Uses the scan's own angle_min and angle_increment — works on any lidar
+  int angle_to_index(const sensor_msgs::msg::LaserScan::SharedPtr & msg, float angle) const
+  {
+    const int total_rays = static_cast<int>(msg->ranges.size());
+    int idx = static_cast<int>((angle - msg->angle_min) / msg->angle_increment);
+    return std::max(0, std::min(idx, total_rays - 1));
+  }
+
   void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
   {
-    const int total_rays  = static_cast<int>(msg->ranges.size());
-    const int start_idx   = total_rays / 4;       // -π/2
-    const int end_idx     = 3 * total_rays / 4;   // +π/2
-    const int center_idx  = total_rays / 2;        // 0 rad (forward)
+    // Derive indices from real angles — not ray count fractions
+    const int start_idx  = angle_to_index(msg, -M_PI / 2.0f);  // -90°
+    const int end_idx    = angle_to_index(msg,  M_PI / 2.0f);  // +90°
+    const int front_start = angle_to_index(msg, -M_PI / 6.0f); // -30° cone
+    const int front_end   = angle_to_index(msg,  M_PI / 6.0f); // +30° cone
 
     obstacle_detected_ = false;
     float max_dist = 0.0f;
 
-    for (int i = start_idx; i < end_idx; ++i) {
+    for (int i = start_idx; i <= end_idx; ++i) {
       const float range = msg->ranges[i];
 
       if (!std::isfinite(range)) continue;
 
-      // Obstacle check — narrow front cone (±10 rays around center)
-      if (std::abs(i - center_idx) <= 10 && range < 0.35f) {
+      // Obstacle check — front ±30° cone (angle-derived, not ray-count-derived)
+      if (i >= front_start && i <= front_end && range < OBSTACLE_THRESHOLD) {
         obstacle_detected_ = true;
       }
 
-      // Track the ray with the greatest valid distance
+      // Track ray with greatest valid distance across full 180°
       if (range > max_dist) {
-        max_dist    = range;
-        direction_  = msg->angle_min + (i * msg->angle_increment);
+        max_dist   = range;
+        direction_ = msg->angle_min + (i * msg->angle_increment);
       }
     }
 
-    // No obstacle — reset steering to drive straight
+    // Clear path — drive straight, discard any stale angle
     if (!obstacle_detected_) {
       direction_ = 0.0f;
     }
@@ -58,14 +68,17 @@ private:
 
   void control_loop()
   {
-    auto msg          = geometry_msgs::msg::Twist();
-    msg.linear.x      = 0.1f;
-    msg.angular.z     = obstacle_detected_ ? direction_ / 2.0f : 0.0f;
+    auto msg      = geometry_msgs::msg::Twist();
+    msg.linear.x  = LINEAR_VEL;
+    msg.angular.z = obstacle_detected_ ? direction_ / 2.0f : 0.0f;
     vel_pub_->publish(msg);
   }
 
-  float  direction_;
-  bool   obstacle_detected_;
+  static constexpr float LINEAR_VEL        = 0.1f;   // m/s
+  static constexpr float OBSTACLE_THRESHOLD = 0.35f;  // metres
+
+  float direction_;
+  bool  obstacle_detected_;
 
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr      vel_pub_;
